@@ -1252,12 +1252,12 @@ static int set_server_specific_opts(php_stream *stream, SSL_CTX *ctx) /* {{{ */
 
 	set_server_dh_param(stream, ctx);
 	zv = php_stream_context_get_option(PHP_STREAM_CONTEXT(stream), "ssl", "single_dh_use");
-	if (zv != NULL && zend_is_true(zv)) {
+	if (zv == NULL || zend_is_true(zv)) {
 		ssl_ctx_options |= SSL_OP_SINGLE_DH_USE;
 	}
 
 	zv = php_stream_context_get_option(PHP_STREAM_CONTEXT(stream), "ssl", "honor_cipher_order");
-	if (zv != NULL && zend_is_true(zv)) {
+	if (zv == NULL || zend_is_true(zv)) {
 		ssl_ctx_options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 	}
 
@@ -1431,9 +1431,6 @@ static unsigned char *alpn_protos_parse(unsigned short *outlen, const char *in)
 	}
 
 	out = emalloc(strlen(in) + 1);
-	if (!out) {
-		return NULL;
-	}
 
 	for (i = 0; i <= len; ++i) {
 		if (i == len || in[i] == ',') {
@@ -1627,21 +1624,8 @@ int php_openssl_setup_crypto(php_stream *stream,
 	}
 
 #ifdef SSL_MODE_RELEASE_BUFFERS
-	do {
-		long mode = SSL_get_mode(sslsock->ssl_handle);
-		SSL_set_mode(sslsock->ssl_handle, mode | SSL_MODE_RELEASE_BUFFERS);
-	} while (0);
+	SSL_set_mode(sslsock->ssl_handle, SSL_get_mode(sslsock->ssl_handle) | SSL_MODE_RELEASE_BUFFERS);
 #endif
-	
-	do {
-		long mode = SSL_get_mode(sslsock->ssl_handle);
-		SSL_set_mode(sslsock->ssl_handle, mode | SSL_MODE_ENABLE_PARTIAL_WRITE);
-	} while (0);
-	
-	do {
-		long mode = SSL_get_mode(sslsock->ssl_handle);
-		SSL_set_mode(sslsock->ssl_handle, mode | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-	} while (0);
 
 	if (cparam->inputs.session) {
 		if (cparam->inputs.session->ops != &php_openssl_socket_ops) {
@@ -1776,6 +1760,16 @@ static int php_openssl_enable_crypto(php_stream *stream,
 
 		if (SUCCESS == php_set_sock_blocking(sslsock->s.socket, 0)) {
 			sslsock->s.is_blocked = 0;
+			/* The following mode are added only if we are able to change socket
+			 * to non blocking mode which is also used for read and write */
+			SSL_set_mode(
+				sslsock->ssl_handle,
+				(
+					SSL_get_mode(sslsock->ssl_handle) |
+					SSL_MODE_ENABLE_PARTIAL_WRITE |
+					SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
+				)
+			);
 		}
 
 		timeout = sslsock->is_client ? &sslsock->connect_timeout : &sslsock->s.timeout;
@@ -2563,7 +2557,7 @@ php_stream *php_openssl_ssl_socket_factory(const char *proto, size_t protolen,
 
 	if (strncmp(proto, "ssl", protolen) == 0) {
 		sslsock->enable_on_connect = 1;
-		sslsock->method = get_crypto_method(context, STREAM_CRYPTO_METHOD_ANY_CLIENT);
+		sslsock->method = get_crypto_method(context, STREAM_CRYPTO_METHOD_TLS_ANY_CLIENT);
 	} else if (strncmp(proto, "sslv2", protolen) == 0) {
 		php_error_docref(NULL, E_WARNING, "SSLv2 unavailable in this PHP version");
 		php_stream_close(stream);
@@ -2579,7 +2573,7 @@ php_stream *php_openssl_ssl_socket_factory(const char *proto, size_t protolen,
 #endif
 	} else if (strncmp(proto, "tls", protolen) == 0) {
 		sslsock->enable_on_connect = 1;
-		sslsock->method = get_crypto_method(context, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+		sslsock->method = get_crypto_method(context, STREAM_CRYPTO_METHOD_TLS_ANY_CLIENT);
 	} else if (strncmp(proto, "tlsv1.0", protolen) == 0) {
 		sslsock->enable_on_connect = 1;
 		sslsock->method = STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT;

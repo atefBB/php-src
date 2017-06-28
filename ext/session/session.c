@@ -1830,7 +1830,6 @@ static PHP_FUNCTION(session_set_save_handler)
 {
 	zval *args = NULL;
 	int i, num_args, argc = ZEND_NUM_ARGS();
-	zend_string *name;
 	zend_string *ini_name, *ini_val;
 
 	if (PS(session_status) == php_session_active) {
@@ -1960,12 +1959,12 @@ static PHP_FUNCTION(session_set_save_handler)
 
 	/* At this point argc can only be between 6 and PS_NUM_APIS */
 	for (i = 0; i < argc; i++) {
-		if (!zend_is_callable(&args[i], 0, &name)) {
+		if (!zend_is_callable(&args[i], 0, NULL)) {
+			zend_string *name = zend_get_callable_name(&args[i]);
 			php_error_docref(NULL, E_WARNING, "Argument %d is not a valid callback", i+1);
 			zend_string_release(name);
 			RETURN_FALSE;
 		}
-		zend_string_release(name);
 	}
 
 	if (PS(mod) && PS(mod) != &ps_mod_user) {
@@ -2660,6 +2659,10 @@ ZEND_BEGIN_ARG_INFO(arginfo_session_class_updateTimestamp, 0)
 	ZEND_ARG_INFO(0, key)
 	ZEND_ARG_INFO(0, val)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_session_start, 0, 0, 0)
+	ZEND_ARG_INFO(0, options) /* array */
+ZEND_END_ARG_INFO()
 /* }}} */
 
 /* {{{ session_functions[]
@@ -2673,7 +2676,7 @@ static const zend_function_entry session_functions[] = {
 	PHP_FE(session_regenerate_id,     arginfo_session_regenerate_id)
 	PHP_FE(session_decode,            arginfo_session_decode)
 	PHP_FE(session_encode,            arginfo_session_void)
-	PHP_FE(session_start,             arginfo_session_void)
+	PHP_FE(session_start,             arginfo_session_start)
 	PHP_FE(session_destroy,           arginfo_session_void)
 	PHP_FE(session_unset,             arginfo_session_void)
 	PHP_FE(session_gc,                arginfo_session_void)

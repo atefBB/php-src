@@ -35,7 +35,7 @@
 #include "argon2.h"
 #endif
 
-#if PHP_WIN32
+#ifdef PHP_WIN32
 #include "win32/winutil.h"
 #endif
 
@@ -545,6 +545,9 @@ PHP_FUNCTION(password_hash)
 					threads,
 					(uint32_t)salt_len,
 					out_len
+#if HAVE_ARGON2ID
+					, type
+#endif
 				);
 
 				out = emalloc(out_len + 1);
